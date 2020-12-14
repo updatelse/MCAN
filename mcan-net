@@ -74,14 +74,14 @@ class Net(nn.Module):
         if __C.USE_GLOVE:
             self.embedding.weight.data.copy_(torch.from_numpy(pretrained_emb))
 
-        self.lstm = nn.LSTM(
+        self.lstm = nn.LSTM(   #长短期记忆网络
             input_size=__C.WORD_EMBED_SIZE,
             hidden_size=__C.HIDDEN_SIZE,
             num_layers=1,
             batch_first=True
         )
 
-        self.img_feat_linear = nn.Linear(
+        self.img_feat_linear = nn.Linear(  #图像特征的线性操作
             __C.IMG_FEAT_SIZE,
             __C.HIDDEN_SIZE
         )
@@ -99,51 +99,49 @@ class Net(nn.Module):
 
         # Make mask
         lang_feat_mask = self.make_mask(ques_ix.unsqueeze(2))
-        img_feat_mask = self.make_mask(img_feat)
-        print('lang_feat_mask.size: ', lang_feat_mask.size())
-        print('img_feat_mask and size: ',img_feat_mask,img_feat_mask.size())    #[64,1,1,100]     
- 
-
-        # Pre-process Language Feature
+        img_feat_mask = self.make_mask(img_feat)          #[64,1,1,100]     
+   
+       
+        # 预处理文本特征
         lang_feat = self.embedding(ques_ix)
         lang_feat, _ = self.lstm(lang_feat)
 
-        # Pre-process Image Feature
+        # 预处理图像特征
         img_feat = self.img_feat_linear(img_feat)
         print('img_feat.size: ',img_feat.size())         # [64,100,512]
 
-        # Backbone Framework
+        # 主干框架
         lang_feat, img_feat = self.backbone(
             lang_feat,
             img_feat,
             lang_feat_mask,
             img_feat_mask
         )
-
+        #文本特征注意力
         lang_feat = self.attflat_lang(
             lang_feat,
             lang_feat_mask
         )
-
+        #图像特征注意力
         img_feat = self.attflat_img(
             img_feat,
             img_feat_mask
         )
 
         proj_feat = lang_feat + img_feat
-        print('proj_feat.size:',proj_feat.size())    #[64,1024]
+        print('proj_feat.size:',proj_feat.size())     #[64,1024]
       
         proj_feat = self.proj_norm(proj_feat)
-        print('proj_feat.size:',proj_feat.size())     #[64,1024]
+        print('proj_feat.size:',proj_feat.size())      #[64,1024]
 
-        proj_feat = torch.sigmoid(self.proj(proj_feat))
+        proj_feat = torch.sigmoid(self.proj(proj_feat))  #用sigmoid激活函数对融合特征激活
         print('proj_feat:',proj_feat)
         print('proj_feat.size:',proj_feat.size())        #[64,3129]
 
         return proj_feat
 
 
-    # Masking
+    # 遮盖
     def make_mask(self, feature):
         return (torch.sum(
             torch.abs(feature),
